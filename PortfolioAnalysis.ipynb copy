@@ -1,0 +1,301 @@
+{
+ "cells": [
+  {
+   "cell_type": "code",
+   "execution_count": 29,
+   "id": "c00608e8",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "import yfinance as yf # For loading financial datasets\n",
+    "import pandas as pd # For creating tables and dataframes\n",
+    "import math \n",
+    "import numpy as np\n",
+    "\n",
+    "stocks = [\"AAPL\", \"AMZN\", \"MSFT\", \"NFLX\", \"GOOG\", \"TSLA\", \"GME\"] # 7 stocks needed for the first table"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 4,
+   "id": "941da4fd",
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "[*********************100%***********************]  1 of 1 completed\n"
+     ]
+    }
+   ],
+   "source": [
+    "aapl = yf.download(\"AAPL\") # Downloads dataset for AAPL ticker"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 2,
+   "id": "9f4792b1",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "weight = 1 / 7 # This will be the portfolio weight for each ticker "
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 30,
+   "id": "e55f5730",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "def get_annualized_volatility(ticker):\n",
+    "    dataframe = yf.download(f\"{ticker}\")[\"Adj Close\"]\n",
+    "    dataframe_resampled = dataframe.resample('3M').asfreq() #Resample data from daily to every 3-months\n",
+    "    dataframe_resampled[\"pct_change\"] = dataframe.pct_change() #Calculate returns for every 3-months\n",
+    "    dataframe.dropna(inplace=True) #Drop any NaN values (Must drop!)\n",
+    "    annualized_volatility = dataframe_resampled[\"pct_change\"].std() * math.sqrt(4)\n",
+    "    return annualized_volatility"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 31,
+   "id": "5406680c-9e99-4c7a-8c24-2ce151faac38",
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "[*********************100%***********************]  1 of 1 completed\n"
+     ]
+    },
+    {
+     "data": {
+      "text/plain": [
+       "0.05649804942758007"
+      ]
+     },
+     "execution_count": 31,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "get_annualized_volatility(\"AAPL\")"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 33,
+   "id": "e3600f13",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "def beta_against_market(ticker, market):\n",
+    "    dataframe = yf.download(f\"{ticker} {market}\")[\"Adj Close\"]\n",
+    "    dataframe.dropna(inplace=True)\n",
+    "    dataframe_resampled = dataframe.resample(\"12M\").sum() # Resample data to use trailing 12-months\n",
+    "    covariance = dataframe_resampled.cov().iloc[0, 1] # left of the comma is for row selection [row, column]\n",
+    "    beta = covariance / dataframe_resampled[market].var()\n",
+    "    return beta"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 107,
+   "id": "57fbe71a-5d48-4e0b-a330-2eb3ab4a7327",
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "[*********************100%***********************]  2 of 2 completed\n"
+     ]
+    },
+    {
+     "data": {
+      "text/plain": [
+       "0.7062050308127166"
+      ]
+     },
+     "execution_count": 107,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "beta_against_market(\"AAPL\", \"IWM\")"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 90,
+   "id": "13db8684",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "def get_weekly_drawdowns(dataframe):\n",
+    "    dataframe = yf.download(f\"{dataframe}\")[\"Adj Close\"]\n",
+    "    weekly_drawdowns = []\n",
+    "    weekly_resample = dataframe.resample(\"5D\").asfreq() #resample for weekly data (5 trading days per week)\n",
+    "    weekly_resample.dropna(inplace=True)\n",
+    "    weekly_resample_array = np.array(weekly_resample)\n",
+    "    for i in range(0, len(weekly_resample_array)-52, 52): # Breakdown dataset into 52 weeks to find max and minimum during the 52-week period\n",
+    "        high = np.max(weekly_resample_array[i:i+52])\n",
+    "        low = np.min(weekly_resample_array[i:i+52])\n",
+    "        calc = (low - high) / high\n",
+    "        weekly_drawdowns.append(calc)\n",
+    "    average_weekly_drawdowns = sum(weekly_drawdowns) / len(weekly_drawdowns)\n",
+    "    maximum_weekly_drawdown = max(weekly_drawdowns)\n",
+    "    return average_weekly_drawdowns, maximum_weekly_drawdown"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 91,
+   "id": "54867f96-48cf-4dc2-b617-3003ca8d822c",
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "[*********************100%***********************]  1 of 1 completed\n"
+     ]
+    },
+    {
+     "data": {
+      "text/plain": [
+       "(-0.463143413642921, -0.22269129187171072)"
+      ]
+     },
+     "execution_count": 91,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "get_weekly_drawdowns(\"AAPL\")"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 102,
+   "id": "607b77bf",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "def get_total_return(dataframe):\n",
+    "    dataframe = yf.download(f\"{dataframe}\")\n",
+    "    #.iloc[-1] get last row and .iloc[0] get first row of Adj Close \n",
+    "    #Formula for Total_Return = New_Stock_price - Current_Stock_Price / Current_Stock_Price\n",
+    "    total_return = dataframe[\"Adj Close\"].iloc[-1] - (dataframe[\"Adj Close\"].iloc[0]) / dataframe[\"Adj Close\"].iloc[0]\n",
+    "    return f\"{total_return*100}%\""
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 104,
+   "id": "7e221c98-1066-4d71-ba81-447d8123e9e2",
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "[*********************100%***********************]  1 of 1 completed\n"
+     ]
+    },
+    {
+     "data": {
+      "text/plain": [
+       "'14571.000671386719%'"
+      ]
+     },
+     "execution_count": 104,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "get_total_return(\"AAPL\")"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 80,
+   "id": "ae4de516",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "def get_total_annualized_return(dataframe):\n",
+    "    dataframe = yf.download(f\"{dataframe}\")[\"Adj Close\"]\n",
+    "    resampled_data = dataframe.resample(\"10Y\").asfreq()\n",
+    "    resampled_data.dropna(inplace=True)\n",
+    "    total_annualized_return = (resampled_data.iloc[-1] - resampled_data.iloc[0]) / resampled_data.iloc[0]\n",
+    "    return f\"{total_annualized_return * 100}%\""
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 105,
+   "id": "8db4ad40",
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "[*********************100%***********************]  1 of 1 completed\n"
+     ]
+    },
+    {
+     "data": {
+      "text/plain": [
+       "'110503.21022033443%'"
+      ]
+     },
+     "execution_count": 105,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "get_total_annualized_return(\"AAPL\")"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "1184071e-547b-4f21-9494-89bc339babe3",
+   "metadata": {},
+   "outputs": [],
+   "source": []
+  }
+ ],
+ "metadata": {
+  "kernelspec": {
+   "display_name": "Python 3 (ipykernel)",
+   "language": "python",
+   "name": "python3"
+  },
+  "language_info": {
+   "codemirror_mode": {
+    "name": "ipython",
+    "version": 3
+   },
+   "file_extension": ".py",
+   "mimetype": "text/x-python",
+   "name": "python",
+   "nbconvert_exporter": "python",
+   "pygments_lexer": "ipython3",
+   "version": "3.10.9"
+  }
+ },
+ "nbformat": 4,
+ "nbformat_minor": 5
+}
